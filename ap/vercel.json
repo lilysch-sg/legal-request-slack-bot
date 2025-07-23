@@ -1,0 +1,11 @@
+{
+  "functions": {
+    "api/slack.py": {
+      "runtime": "python3.9"
+    }
+  },
+  "routes": [
+    { "src": "/slack/events", "dest": "/api/slack" },
+    { "src": "/", "dest": "/api/slack" }
+  ]
+}
