@@ -1,4 +1,4 @@
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   // Environment variables
   const SLACK_BOT_TOKEN = process.env.SLACK_BOT_TOKEN;
   const TEST_CHANNEL = 'C096BUUPWRJ';
@@ -57,6 +57,8 @@ export default async function handler(req, res) {
     }
   ];
 
+  console.log('Function called, method:', req.method);
+
   if (req.method === 'POST') {
     const { challenge, event } = req.body;
     
@@ -72,9 +74,8 @@ export default async function handler(req, res) {
       try {
         // Classify request
         const messageText = event.text.toLowerCase();
-        let classification = { type: 'General Legal', assignee: 'person3' }; // default
+        let classification = { type: 'General Legal', assignee: 'person3' };
         
-        // Check each rule and stop at first match
         for (const rule of ROUTING_RULES) {
           let found = false;
           for (const keyword of rule.keywords) {
@@ -89,13 +90,63 @@ export default async function handler(req, res) {
         
         console.log('Classification:', classification);
         
-        // Simple sequential ticket numbering using message timestamp
-        // Convert Slack timestamp to a sequential number
+        // Simple ticket numbering
         const timestamp = event.ts.replace('.', '');
-        const shortNumber = parseInt(timestamp.slice(-6)) % 100000; // Last 6 digits, mod 100000
+        const shortNumber = parseInt(timestamp.slice(-6)) % 100000;
         const ticketNumber = `LGL-${String(shortNumber).padStart(5, '0')}`;
         
         // Get assignee name
         const assigneeNames = {
           'person1': '<@U06PS7F4V8B>',
-          'person2': '<@U06K65CQ
+          'person2': '<@U06K65CQ31A>',
+          'person3': '<@U0473NNB3GA>'
+        };
+        const assigneeName = assigneeNames[classification.assignee];
+        
+        // Add ticket reaction
+        const fetch = (await import('node-fetch')).default;
+        
+        await fetch('https://slack.com/api/reactions.add', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${SLACK_BOT_TOKEN}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            channel: event.channel,
+            timestamp: event.ts,
+            name: 'ticket'
+          })
+        });
+        
+        // Reply in thread
+        const threadMessage = `🎫 Ticket ${ticketNumber} created
+Type: ${classification.type}
+Assigned to: ${assigneeName}
+Status: Open`;
+        
+        await fetch('https://slack.com/api/chat.postMessage', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${SLACK_BOT_TOKEN}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            channel: event.channel,
+            text: threadMessage,
+            thread_ts: event.ts
+          })
+        });
+        
+        console.log(`Created ticket ${ticketNumber} for ${classification.type}`);
+        
+      } catch (error) {
+        console.error('Error processing message:', error);
+      }
+    }
+    
+    return res.status(200).send('OK');
+  }
+  
+  res.status(200).send('Legal Request Bot is running!');
+};
