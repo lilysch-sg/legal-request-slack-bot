@@ -40,22 +40,30 @@ export default async function handler(req, res) {
       console.log('Processing message:', event.text);
       
       try {
-        // Classify request
+        // Classify request - FIXED LOGIC
         const messageText = event.text.toLowerCase();
-        let classification = { type: 'General Legal', assignee: 'person3' };
+        let classification = { type: 'General Legal', assignee: 'person3' }; // default
         
+        // Check each rule and stop at first match
         for (const rule of ROUTING_RULES) {
+          let found = false;
           for (const keyword of rule.keywords) {
             if (messageText.includes(keyword.toLowerCase())) {
               classification = rule;
+              found = true;
               break;
             }
           }
-          if (classification !== ROUTING_RULES[ROUTING_RULES.length - 1]) break;
+          if (found) break; // Stop checking other rules once we find a match
         }
         
-        // Generate ticket number (simple counter for now)
-        const ticketNumber = `LGL-${Date.now().toString().slice(-5)}`;
+        console.log('Classification:', classification); // Debug log
+        
+        // Generate sequential ticket number - FIXED
+        const now = new Date();
+        const dayOfYear = Math.floor((now - new Date(now.getFullYear(), 0, 0)) / 1000 / 60 / 60 / 24);
+        const timeMinutes = now.getHours() * 60 + now.getMinutes();
+        const ticketNumber = `LGL-${String(dayOfYear).padStart(3, '0')}${String(timeMinutes).padStart(2, '0')}`;
         
         // Get assignee name
         const assigneeNames = {
@@ -79,13 +87,11 @@ export default async function handler(req, res) {
           })
         });
         
-        // Reply in thread
+        // Reply in thread - REMOVED "react with" instructions
         const threadMessage = `🎫 Ticket ${ticketNumber} created
 Type: ${classification.type}
 Assigned to: ${assigneeName}
-Status: Open
-
-React with 👀 (in progress), ✅ (closed), 🔄 (reopened), ⏸️ (paused), or 🛑 (canceled) to update status.`;
+Status: Open`;
         
         await fetch('https://slack.com/api/chat.postMessage', {
           method: 'POST',
@@ -100,7 +106,7 @@ React with 👀 (in progress), ✅ (closed), 🔄 (reopened), ⏸️ (paused), o
           })
         });
         
-        console.log(`Created ticket ${ticketNumber}`);
+        console.log(`Created ticket ${ticketNumber} for ${classification.type}`);
         
       } catch (error) {
         console.error('Error processing message:', error);
